@@ -215,6 +215,8 @@ struct revere_ui_state
     std::string min_continuous_recording_hours {"24"};
     std::string motion_tier {"auto"};
     std::string motion_tier_status;
+    std::string rtsp_transport {"TCP"};
+    std::string rtsp_transport_status;
 
     // camera removal dialog
     bool delete_camera_files {false};
@@ -1060,8 +1062,16 @@ void configure_camera_setup_wizard(
                     );
                     as.camera = devices.get_camera_by_id(as.camera_id);
 
+                    // The transport chosen with the stream profile
+                    {
+                        auto c = as.camera.value();
+                        c.rtsp_transport.set_value(as.rtsp_transport);
+                        devices.save_camera(c);
+                        as.camera = c;
+                    }
+
                     as.interrogation_phase.store(2);  // RTSP probe
-                    auto cp = r_pipeline::fetch_camera_params(as.camera.value().rtsp_url.value(), as.rtsp_username, as.rtsp_password);
+                    auto cp = r_pipeline::fetch_camera_params(as.camera.value().rtsp_url.value(), as.rtsp_username, as.rtsp_password, as.rtsp_transport);
 
                     if(cp.sdp_medias.empty() || cp.bytes_per_second == 0)
                         R_THROW(("Unable to communicate with camera."));
@@ -1115,7 +1125,8 @@ void configure_camera_setup_wizard(
                     // directly for bitrate + a key frame, and derive the codec
                     // params from the SDP (the RTSP equivalent of interrogation).
                     as.interrogation_phase.store(2);  // RTSP probe
-                    auto cp = r_pipeline::fetch_camera_params(camera.rtsp_url.value(), as.rtsp_username, as.rtsp_password);
+                    auto cp = r_pipeline::fetch_camera_params(camera.rtsp_url.value(), as.rtsp_username, as.rtsp_password,
+                        camera.rtsp_transport.is_null() ? string(r_pipeline::RTSP_DEFAULT_PROTOCOLS) : camera.rtsp_transport.value());
 
                     if(cp.sdp_medias.empty() || cp.bytes_per_second == 0)
                         R_THROW(("Unable to communicate with camera."));
@@ -1448,6 +1459,7 @@ void configure_camera_setup_wizard(
                     c.camera_name.set_value(rscc.camera_name);
                     c.ipv4.set_value(rscc.ipv4);
                     c.rtsp_url.set_value(rscc.rtsp_url);
+                    c.rtsp_transport.set_value(rscc.rtsp_transport);
                     if(rscc.rtsp_username.size() > 0)
                     {
                         c.rtsp_username.set_value(rscc.rtsp_username);
@@ -1492,6 +1504,8 @@ void configure_camera_setup_wizard(
                 ui_state.min_continuous_recording_hours,
                 ui_state.motion_tier,
                 ui_state.motion_tier_status,
+                ui_state.rtsp_transport,
+                ui_state.rtsp_transport_status,
                 record_path,
                 [&](){
                     // OK button
@@ -1522,6 +1536,7 @@ void configure_camera_setup_wizard(
                     camera.do_motion_pruning.set_value(ui_state.do_motion_pruning);
                     camera.min_continuous_recording_hours.set_value(r_string_utils::s_to_int(ui_state.min_continuous_recording_hours));
                     camera.motion_tier.set_value(ui_state.motion_tier);
+                    camera.rtsp_transport.set_value(ui_state.rtsp_transport);
                     devices.save_camera(camera);
 
                     stream_keeper.bounce(camera_id.value());
@@ -3017,6 +3032,7 @@ int main(int argc, char** argv)
             return;
         auto& cam = as.camera.value();
         as.ipv4 = cam.ipv4.is_null() ? "" : cam.ipv4.value();
+        as.rtsp_transport = (!cam.rtsp_transport.is_null() && cam.rtsp_transport.value() == "UDP") ? "UDP" : "TCP";
         as.wizard_step = 1;
         as.wizard_total_steps = 9;
 
@@ -3084,6 +3100,14 @@ int main(int argc, char** argv)
                 ? string("Using ") + names[ts.tier] + ": " + ts.reason + "."
                 : string();
         }
+        ui_state.rtsp_transport = (!camera.rtsp_transport.is_null() && camera.rtsp_transport.value() == "UDP") ? "UDP" : "TCP";
+        ui_state.rtsp_transport_status.clear();
+        for(const auto& st : streamKeeper.fetch_stream_status())
+        {
+            if(st.camera.id == camera.id && st.rtsp_transport_fallback)
+                ui_state.rtsp_transport_status = "This camera wouldn't stream over TCP, so Revere is receiving it over UDP. "
+                                                 "Choose UDP to keep it that way, or Save with TCP to try TCP again.";
+        }
         camera_setup_wizard.next("camera_properties_modal");
     };
     main_window_actions.view = [&](int i){
@@ -3131,6 +3155,7 @@ int main(int argc, char** argv)
         streamKeeper.set_system_plugin_enabled(name, enabled);
     };
     main_window_actions.add_rtsp_camera = [&](){
+        rscc.rtsp_transport = "TCP";
         camera_setup_wizard.next("configure_rtsp_source_camera");
     };
     main_window_actions.dismiss_notice = [](const std::string& id){
