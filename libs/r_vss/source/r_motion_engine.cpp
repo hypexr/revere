@@ -156,6 +156,7 @@ void r_motion_engine::_entry_point()
                 }
                 _newest.forget(work.id);
                 _skip_log.erase(work.id);
+                ++_processed;
                 continue;
             }
 
@@ -173,6 +174,7 @@ void r_motion_engine::_entry_point()
                                   work.id.c_str(), sl.second, (long long)(started_ms - work.posted_ms));
                     sl = {started_ms, 0};
                 }
+                ++_processed;
                 continue;
             }
 
@@ -261,6 +263,17 @@ void r_motion_engine::_entry_point()
                                     size_t n = wc->get_motion_confirm_frames();
                                     bool should_start = wc->keyframe_motion_buffer().last_n_match(
                                         n, [](const r_keyframe_motion_entry& e) { return e.has_motion; });
+
+                                    // Not confirmed yet: object detection may confirm this frame alone.
+                                    if(_probe && probe_due(should_start, is_significant, wc->get_last_probe_ts(), work.ts))
+                                    {
+                                        wc->set_last_probe_ts(work.ts);
+                                        if(_probe(wc->get_camera_id(), work.ts, letterbox_data, 640, 640, motion_bbox, motion_regions))
+                                        {
+                                            should_start = true;
+                                            n = 1;
+                                        }
+                                    }
 
                                     if(should_start)
                                     {
@@ -377,6 +390,7 @@ void r_motion_engine::_entry_point()
                 fflush(stdout);
                 _work_contexts.erase(work.id);
             }
+            ++_processed;
         }
     }
 }
