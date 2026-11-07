@@ -5,8 +5,11 @@ include(FetchContent)
 
 FetchContent_Declare(
   nanots
-  GIT_REPOSITORY https://github.com/dicroce/nanots.git
-  GIT_TAG main
+  # Integration branch: dicroce/nanots main + PRs #17 (reader/iterator re-check
+  # block by catalog id, fence before writer reads pins) and #18 (startup
+  # open-block recovery report). Revert to dicroce/nanots main once those merge.
+  GIT_REPOSITORY https://github.com/hypexr/nanots.git
+  GIT_TAG integ/nanots-pr17-18
 )
 FetchContent_MakeAvailable(nanots)
 
