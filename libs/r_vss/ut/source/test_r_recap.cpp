@@ -19,6 +19,8 @@ using namespace std;
 
 // Windows (rpcndr.h via windows.h) defines `small` as `char`; this test uses `small` as a variable.
 #undef small
+#undef near
+#undef far
 
 REGISTER_TEST_FIXTURE(test_r_recap);
 
