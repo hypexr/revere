@@ -385,6 +385,8 @@ void test_r_crypto::test_srp6a_known_answer_b_is_checked()
     RTF_ASSERT_THROWS(make(vector<uint8_t>(384, 0xff)), r_invalid_argument_exception);
     RTF_ASSERT_THROWS(make(unhex(SRP6A_N_3072)), r_invalid_argument_exception);
     RTF_ASSERT(make(unhex(v.b))->public_key() == unhex(v.B));
+}
+
 static bool all_zero(const vector<uint8_t>& v)
 {
     for(auto b : v)
