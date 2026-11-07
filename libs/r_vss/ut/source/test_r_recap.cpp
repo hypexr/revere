@@ -17,6 +17,9 @@
 using namespace r_vss;
 using namespace std;
 
+// Windows (rpcndr.h via windows.h) defines `small` as `char`; this test uses `small` as a variable.
+#undef small
+
 REGISTER_TEST_FIXTURE(test_r_recap);
 
 // The test clip; bad_guy.h is compiled into test_r_motion_engine.cpp. 96x54 at 29.97 fps,
